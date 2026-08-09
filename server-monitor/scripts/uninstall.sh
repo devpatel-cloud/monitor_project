@@ -18,9 +18,10 @@ rm -f /etc/systemd/system/server-monitor-collector.service
 rm -f /etc/systemd/system/server-monitor-cleanup.timer
 systemctl daemon-reload
 
-echo "Removing Nginx location snippet..."
+echo "Removing Nginx location snippet and sudoers rule..."
 rm -f /etc/nginx/default.d/server-monitor.conf
 rm -f /etc/nginx/snippets/server-monitor-location.conf
+rm -f /etc/sudoers.d/server-monitor
 nginx -t && systemctl reload nginx || true
 
 echo "✅ Native Server Monitor Platform uninstalled cleanly."

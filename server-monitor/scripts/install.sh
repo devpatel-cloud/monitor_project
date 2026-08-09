@@ -72,7 +72,14 @@ else
   exit 1
 fi
 
-echo "9. Installing systemd unit files..."
+echo "9. Installing restricted sudoers rule for service control..."
+if [ -f "deployment/sudoers/server-monitor-sudoers" ]; then
+  cp deployment/sudoers/server-monitor-sudoers /etc/sudoers.d/server-monitor
+  chmod 0440 /etc/sudoers.d/server-monitor
+  echo "Installed /etc/sudoers.d/server-monitor"
+fi
+
+echo "10. Installing systemd unit files..."
 cp deployment/systemd/server-monitor-backend.service /etc/systemd/system/
 cp deployment/systemd/server-monitor-collector.service /etc/systemd/system/
 cp deployment/systemd/server-monitor.service /etc/systemd/system/

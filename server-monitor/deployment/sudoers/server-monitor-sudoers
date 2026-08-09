@@ -1,0 +1,18 @@
+# Restricted Sudoers Configuration for Server Monitor Platform
+# Installed to /etc/sudoers.d/server-monitor
+
+# Service Control Whitelist (No password required for whitelisted systemd actions)
+ALL ALL=(root) NOPASSWD: /usr/bin/systemctl start nginx, /usr/bin/systemctl stop nginx, /usr/bin/systemctl restart nginx, /usr/bin/systemctl enable nginx, /usr/bin/systemctl disable nginx
+ALL ALL=(root) NOPASSWD: /usr/bin/systemctl start docker, /usr/bin/systemctl stop docker, /usr/bin/systemctl restart docker, /usr/bin/systemctl enable docker, /usr/bin/systemctl disable docker
+ALL ALL=(root) NOPASSWD: /usr/bin/systemctl start sshd, /usr/bin/systemctl stop sshd, /usr/bin/systemctl restart sshd, /usr/bin/systemctl enable sshd, /usr/bin/systemctl disable sshd
+ALL ALL=(root) NOPASSWD: /usr/bin/systemctl start NetworkManager, /usr/bin/systemctl stop NetworkManager, /usr/bin/systemctl restart NetworkManager, /usr/bin/systemctl enable NetworkManager, /usr/bin/systemctl disable NetworkManager
+ALL ALL=(root) NOPASSWD: /usr/bin/systemctl start chronyd, /usr/bin/systemctl stop chronyd, /usr/bin/systemctl restart chronyd, /usr/bin/systemctl enable chronyd, /usr/bin/systemctl disable chronyd
+ALL ALL=(root) NOPASSWD: /usr/bin/systemctl start firewalld, /usr/bin/systemctl stop firewalld, /usr/bin/systemctl restart firewalld, /usr/bin/systemctl enable firewalld, /usr/bin/systemctl disable firewalld
+ALL ALL=(root) NOPASSWD: /usr/bin/systemctl start server-monitor, /usr/bin/systemctl stop server-monitor, /usr/bin/systemctl restart server-monitor, /usr/bin/systemctl enable server-monitor, /usr/bin/systemctl disable server-monitor
+ALL ALL=(root) NOPASSWD: /usr/bin/systemctl start server-monitor-backend, /usr/bin/systemctl stop server-monitor-backend, /usr/bin/systemctl restart server-monitor-backend, /usr/bin/systemctl enable server-monitor-backend, /usr/bin/systemctl disable server-monitor-backend
+ALL ALL=(root) NOPASSWD: /usr/bin/systemctl start server-monitor-collector, /usr/bin/systemctl stop server-monitor-collector, /usr/bin/systemctl restart server-monitor-collector, /usr/bin/systemctl enable server-monitor-collector, /usr/bin/systemctl disable server-monitor-collector
+ALL ALL=(root) NOPASSWD: /usr/bin/systemctl start duckdns-ipv6, /usr/bin/systemctl stop duckdns-ipv6, /usr/bin/systemctl restart duckdns-ipv6, /usr/bin/systemctl enable duckdns-ipv6, /usr/bin/systemctl disable duckdns-ipv6
+ALL ALL=(root) NOPASSWD: /usr/bin/systemctl start sanjaya, /usr/bin/systemctl stop sanjaya, /usr/bin/systemctl restart sanjaya, /usr/bin/systemctl enable sanjaya, /usr/bin/systemctl disable sanjaya
+
+# Journalctl Read Access
+ALL ALL=(root) NOPASSWD: /usr/bin/journalctl -u *
