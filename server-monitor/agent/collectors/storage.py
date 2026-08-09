@@ -179,8 +179,12 @@ def get_storage_info() -> Dict[str, Any]:
             "usage_percent": data["usage_percent"],
             "inodes_total": data["inodes_total"],
             "inodes_used": data["inodes_used"],
-            "inodes_percent": data["inodes_percent"]
+            "inodes_percent": data["inodes_percent"],
+            "is_root": (mount == "/")
         })
+
+    # Ensure partition mounted at '/' is at index 0 (Primary Storage)
+    partitions.sort(key=lambda p: (0 if p["mount_point"] == "/" else 1, -p["total_bytes"]))
 
     lvm_info = get_lvm_info()
 

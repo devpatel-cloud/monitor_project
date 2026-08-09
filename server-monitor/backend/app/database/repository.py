@@ -9,8 +9,15 @@ from backend.app.database.models import (
 )
 from backend.app.core.security import hash_password
 
+from backend.app.database.database import engine, Base
+
 def init_db_seeds(db: Session):
     """Seed initial default admin and viewer accounts if table is empty."""
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception:
+        pass
+
     user_count = db.query(User).count()
     if user_count == 0:
         admin_user = User(
@@ -28,6 +35,11 @@ def init_db_seeds(db: Session):
         db.commit()
 
 def save_snapshot_to_db(db: Session, snapshot: Dict[str, Any]):
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception:
+        pass
+
     ts = snapshot.get("timestamp", time.time())
 
     # CPU

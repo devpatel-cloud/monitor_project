@@ -2,15 +2,22 @@ import subprocess
 from typing import Dict, Any, List
 
 DEFAULT_SERVICES = [
+    "server-monitor-backend",
+    "server-monitor-collector",
+    "duckdns-ipv6",
     "nginx",
     "docker",
     "sshd",
     "NetworkManager",
     "chronyd",
-    "firewalld",
-    "server-monitor",
-    "duckdns-ipv6"
+    "firewalld"
 ]
+
+OS_DEFAULT_SERVICES = {
+    "nginx", "docker", "sshd", "NetworkManager", "chronyd",
+    "firewalld", "dbus", "systemd-journald", "systemd-logind",
+    "getty", "dnf-makecache"
+}
 
 def check_service_status(service_name: str) -> Dict[str, Any]:
     """
@@ -20,6 +27,14 @@ def check_service_status(service_name: str) -> Dict[str, Any]:
     state = "UNKNOWN"
     enabled = False
     is_timer_active = False
+
+    # Determine if service is a standard OS infrastructure service
+    is_default = (
+        service_name in OS_DEFAULT_SERVICES
+        or service_name.startswith("systemd-")
+        or service_name.startswith("getty-")
+        or service_name.startswith("dnf-")
+    )
 
     # Special handling for oneshot timer services
     if service_name == "duckdns-ipv6" or service_name == "duckdns-ipv6.service":
@@ -64,6 +79,7 @@ def check_service_status(service_name: str) -> Dict[str, Any]:
         "name": service_name,
         "state": state,
         "enabled": enabled,
+        "is_default": is_default,
         "timer_active": is_timer_active if service_name.startswith("duckdns") else None
     }
 

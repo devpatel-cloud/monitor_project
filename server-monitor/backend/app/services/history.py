@@ -127,13 +127,31 @@ def get_network_history(db: Session, range_str: str = "15m") -> List[Dict[str, A
     raw_records = db.query(NetworkMetric).filter(NetworkMetric.timestamp >= cutoff).order_by(NetworkMetric.timestamp.asc()).all()
     step = get_downsample_step(seconds)
     records = downsample_records(raw_records, step)
-    return [{
-        "timestamp": r.timestamp,
-        "rx_bytes_total": r.rx_bytes_total,
-        "tx_bytes_total": r.tx_bytes_total,
-        "rx_packets_total": r.rx_packets_total,
-        "tx_packets_total": r.tx_packets_total
-    } for r in records]
+
+    result = []
+    prev_r = None
+    for r in records:
+        down_mbps = 0.0
+        up_mbps = 0.0
+        if prev_r:
+            dt = r.timestamp - prev_r.timestamp
+            if dt > 0:
+                rx_delta = max(0, r.rx_bytes_total - prev_r.rx_bytes_total)
+                tx_delta = max(0, r.tx_bytes_total - prev_r.tx_bytes_total)
+                down_mbps = round((rx_delta * 8.0) / (dt * 1_000_000.0), 2)
+                up_mbps = round((tx_delta * 8.0) / (dt * 1_000_000.0), 2)
+        prev_r = r
+
+        result.append({
+            "timestamp": r.timestamp,
+            "rx_bytes_total": r.rx_bytes_total,
+            "tx_bytes_total": r.tx_bytes_total,
+            "rx_packets_total": r.rx_packets_total,
+            "tx_packets_total": r.tx_packets_total,
+            "download_mbps": down_mbps,
+            "upload_mbps": up_mbps
+        })
+    return result
 
 def get_disk_io_history(db: Session, range_str: str = "15m") -> List[Dict[str, Any]]:
     seconds = parse_range_to_seconds(range_str)
@@ -141,10 +159,28 @@ def get_disk_io_history(db: Session, range_str: str = "15m") -> List[Dict[str, A
     raw_records = db.query(DiskIOMetric).filter(DiskIOMetric.timestamp >= cutoff).order_by(DiskIOMetric.timestamp.asc()).all()
     step = get_downsample_step(seconds)
     records = downsample_records(raw_records, step)
-    return [{
-        "timestamp": r.timestamp,
-        "total_read_bytes": r.total_read_bytes,
-        "total_write_bytes": r.total_write_bytes,
-        "total_read_ops": r.total_read_ops,
-        "total_write_ops": r.total_write_ops
-    } for r in records]
+
+    result = []
+    prev_r = None
+    for r in records:
+        read_mb_s = 0.0
+        write_mb_s = 0.0
+        if prev_r:
+            dt = r.timestamp - prev_r.timestamp
+            if dt > 0:
+                r_delta = max(0, r.total_read_bytes - prev_r.total_read_bytes)
+                w_delta = max(0, r.total_write_bytes - prev_r.total_write_bytes)
+                read_mb_s = round((r_delta / dt) / (1024.0 * 1024.0), 2)
+                write_mb_s = round((w_delta / dt) / (1024.0 * 1024.0), 2)
+        prev_r = r
+
+        result.append({
+            "timestamp": r.timestamp,
+            "total_read_bytes": r.total_read_bytes,
+            "total_write_bytes": r.total_write_bytes,
+            "total_read_ops": r.total_read_ops,
+            "total_write_ops": r.total_write_ops,
+            "read_mb_s": read_mb_s,
+            "write_mb_s": write_mb_s
+        })
+    return result

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Server, Play, Square, RefreshCw, FileText, AlertTriangle, X, ShieldAlert } from 'lucide-react';
+import { Server, Play, Square, RefreshCw, FileText, AlertTriangle, X, ShieldAlert, Cpu } from 'lucide-react';
 import api from '../api/client';
 import { getCurrentUserRole } from '../utils/auth';
 
@@ -14,7 +14,6 @@ export const Services: React.FC<ServicesProps> = ({ servicesData, onRefreshServi
   const userRole = getCurrentUserRole();
   const isAdmin = userRole === 'admin';
 
-  // Action Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<{
     show: boolean;
     service: string;
@@ -22,7 +21,6 @@ export const Services: React.FC<ServicesProps> = ({ servicesData, onRefreshServi
     isProtected: boolean;
   }>({ show: false, service: '', action: 'start', isProtected: false });
 
-  // Logs Modal State
   const [logsModal, setLogsModal] = useState<{
     show: boolean;
     service: string;
@@ -33,18 +31,20 @@ export const Services: React.FC<ServicesProps> = ({ servicesData, onRefreshServi
   const [actionError, setActionError] = useState<string>('');
 
   const services = servicesData?.services || [
-    { name: 'nginx', state: 'RUNNING', enabled: true },
-    { name: 'docker', state: 'RUNNING', enabled: true },
-    { name: 'sshd', state: 'RUNNING', enabled: true },
-    { name: 'NetworkManager', state: 'RUNNING', enabled: true },
-    { name: 'chronyd', state: 'RUNNING', enabled: true },
-    { name: 'firewalld', state: 'RUNNING', enabled: true },
-    { name: 'server-monitor', state: 'RUNNING', enabled: true },
-    { name: 'server-monitor-backend', state: 'RUNNING', enabled: true },
-    { name: 'server-monitor-collector', state: 'RUNNING', enabled: true },
-    { name: 'duckdns-ipv6', state: 'RUNNING', enabled: true },
-    { name: 'sanjaya', state: 'RUNNING', enabled: true }
+    { name: 'server-monitor-backend', state: 'RUNNING', enabled: true, is_default: false },
+    { name: 'server-monitor-collector', state: 'RUNNING', enabled: true, is_default: false },
+    { name: 'duckdns-ipv6', state: 'RUNNING', enabled: true, is_default: false },
+    { name: 'nginx', state: 'RUNNING', enabled: true, is_default: true },
+    { name: 'docker', state: 'RUNNING', enabled: true, is_default: true },
+    { name: 'sshd', state: 'RUNNING', enabled: true, is_default: true },
+    { name: 'NetworkManager', state: 'RUNNING', enabled: true, is_default: true },
+    { name: 'chronyd', state: 'RUNNING', enabled: true, is_default: true },
+    { name: 'firewalld', state: 'RUNNING', enabled: true, is_default: true }
   ];
+
+  // Custom/Application services OR any default service that is STOPPED/FAILED
+  const customOrActionable = services.filter((s: any) => !s.is_default || s.state === 'STOPPED' || s.state === 'FAILED');
+  const osDefaultServices = services.filter((s: any) => s.is_default && s.state === 'RUNNING');
 
   const handleOpenActionModal = (service: string, action: 'start' | 'stop' | 'restart' | 'enable' | 'disable') => {
     const isProt = PROTECTED_SERVICES.includes(service.replace('.service', ''));
@@ -90,6 +90,75 @@ export const Services: React.FC<ServicesProps> = ({ servicesData, onRefreshServi
     }
   };
 
+  const renderServiceRow = (svc: any, idx: number) => {
+    const name = svc.name;
+    const isRunning = svc.state === 'RUNNING';
+    const isFailed = svc.state === 'FAILED';
+
+    return (
+      <tr key={idx}>
+        <td className="font-mono" style={{ fontWeight: 600 }}>
+          {name}.service {!svc.is_default && <span className="status-pill info" style={{ fontSize: '0.7rem', marginLeft: '6px' }}>Custom</span>}
+        </td>
+        <td>
+          <span className={`status-pill ${isRunning ? 'success' : isFailed ? 'critical' : 'warning'}`}>
+            {isRunning ? '🟢 RUNNING' : isFailed ? '🔴 FAILED' : '🟠 STOPPED'}
+          </span>
+        </td>
+        <td>
+          <span className="font-mono" style={{ fontSize: '0.85rem' }}>
+            {svc.enabled ? 'Enabled' : 'Disabled'}
+          </span>
+        </td>
+        <td style={{ textAlign: 'right' }}>
+          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => handleOpenLogs(name)}
+              className="btn-icon"
+              title="View Journal Logs"
+              style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+            >
+              <FileText size={14} style={{ marginRight: 4 }} /> Logs
+            </button>
+
+            {isAdmin && (
+              <>
+                {!isRunning ? (
+                  <button
+                    onClick={() => handleOpenActionModal(name, 'start')}
+                    className="btn-icon"
+                    title="Start Service"
+                    style={{ padding: '4px 8px', color: 'var(--color-success)', fontSize: '0.8rem' }}
+                  >
+                    <Play size={14} style={{ marginRight: 4 }} /> Start
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleOpenActionModal(name, 'stop')}
+                    className="btn-icon"
+                    title="Stop Service"
+                    style={{ padding: '4px 8px', color: 'var(--color-critical)', fontSize: '0.8rem' }}
+                  >
+                    <Square size={14} style={{ marginRight: 4 }} /> Stop
+                  </button>
+                )}
+
+                <button
+                  onClick={() => handleOpenActionModal(name, 'restart')}
+                  className="btn-icon"
+                  title="Restart Service"
+                  style={{ padding: '4px 8px', color: 'var(--color-warning)', fontSize: '0.8rem' }}
+                >
+                  <RefreshCw size={14} style={{ marginRight: 4 }} /> Restart
+                </button>
+              </>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -111,9 +180,9 @@ export const Services: React.FC<ServicesProps> = ({ servicesData, onRefreshServi
         </div>
       )}
 
-      {/* Services Table */}
-      <div className="card">
-        <h3 className="card-title" style={{ marginBottom: '1rem' }}>Monitored Services & Controls</h3>
+      {/* Primary Table: Custom & Actionable Services */}
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="card-title" style={{ marginBottom: '1rem' }}>Custom & Actionable Application Services</h3>
         <table className="custom-table">
           <thead>
             <tr>
@@ -124,94 +193,27 @@ export const Services: React.FC<ServicesProps> = ({ servicesData, onRefreshServi
             </tr>
           </thead>
           <tbody>
-            {services.map((svc: any, idx: number) => {
-              const name = svc.name;
-              const isRunning = svc.state === 'RUNNING';
-              const isFailed = svc.state === 'FAILED';
+            {customOrActionable.map((svc: any, idx: number) => renderServiceRow(svc, idx))}
+          </tbody>
+        </table>
+      </div>
 
-              return (
-                <tr key={idx}>
-                  <td className="font-mono" style={{ fontWeight: 600 }}>{name}.service</td>
-                  <td>
-                    <span className={`status-pill ${isRunning ? 'success' : isFailed ? 'critical' : 'warning'}`}>
-                      {isRunning ? '🟢 RUNNING' : isFailed ? '🔴 FAILED' : '🟠 STOPPED'}
-                    </span>
-                  </td>
-                  <td>
-                    <span className="font-mono" style={{ fontSize: '0.85rem' }}>
-                      {svc.enabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                      {/* Logs Button */}
-                      <button
-                        onClick={() => handleOpenLogs(name)}
-                        className="btn-icon"
-                        title="View Journal Logs"
-                        style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-                      >
-                        <FileText size={14} style={{ marginRight: 4 }} /> Logs
-                      </button>
-
-                      {/* Admin Control Buttons */}
-                      {isAdmin && (
-                        <>
-                          {!isRunning ? (
-                            <button
-                              onClick={() => handleOpenActionModal(name, 'start')}
-                              className="btn-icon"
-                              title="Start Service"
-                              style={{ padding: '4px 8px', color: 'var(--color-success)', fontSize: '0.8rem' }}
-                            >
-                              <Play size={14} style={{ marginRight: 4 }} /> Start
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleOpenActionModal(name, 'stop')}
-                              className="btn-icon"
-                              title="Stop Service"
-                              style={{ padding: '4px 8px', color: 'var(--color-critical)', fontSize: '0.8rem' }}
-                            >
-                              <Square size={14} style={{ marginRight: 4 }} /> Stop
-                            </button>
-                          )}
-
-                          <button
-                            onClick={() => handleOpenActionModal(name, 'restart')}
-                            className="btn-icon"
-                            title="Restart Service"
-                            style={{ padding: '4px 8px', color: 'var(--color-warning)', fontSize: '0.8rem' }}
-                          >
-                            <RefreshCw size={14} style={{ marginRight: 4 }} /> Restart
-                          </button>
-
-                          {svc.enabled ? (
-                            <button
-                              onClick={() => handleOpenActionModal(name, 'disable')}
-                              className="btn-icon"
-                              title="Disable Boot Auto-start"
-                              style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-                            >
-                              Disable
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleOpenActionModal(name, 'enable')}
-                              className="btn-icon"
-                              title="Enable Boot Auto-start"
-                              style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-                            >
-                              Enable
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+      {/* Secondary Table: Running OS Infrastructure Services */}
+      <div className="card">
+        <h3 className="card-title" style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>
+          OS Infrastructure Services (Default Running Baseline)
+        </h3>
+        <table className="custom-table">
+          <thead>
+            <tr>
+              <th>Service Name</th>
+              <th>Status</th>
+              <th>Boot Status</th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {osDefaultServices.map((svc: any, idx: number) => renderServiceRow(svc, idx))}
           </tbody>
         </table>
       </div>
