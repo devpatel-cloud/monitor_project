@@ -4,6 +4,7 @@ import socket
 import time
 import subprocess
 from typing import Dict, Any, List
+from agent.collectors.wifi import detect_wifi_interface, parse_iw_link
 
 _last_network_snapshot = {
     "timestamp": 0.0,
@@ -96,19 +97,32 @@ def get_listening_ports() -> List[Dict[str, Any]]:
                 ports.append({"proto": parts[0], "address": parts[4]})
     return ports
 
+def get_iface_sys_bytes(iface: str) -> (int, int):
+    rx, tx = 0, 0
+    try:
+        rx_p = f"/sys/class/net/{iface}/statistics/rx_bytes"
+        tx_p = f"/sys/class/net/{iface}/statistics/tx_bytes"
+        if os.path.exists(rx_p):
+            with open(rx_p, "r") as f:
+                rx = int(f.read().strip())
+        if os.path.exists(tx_p):
+            with open(tx_p, "r") as f:
+                tx = int(f.read().strip())
+    except Exception:
+        pass
+    return rx, tx
+
 def get_network_info() -> Dict[str, Any]:
     """
     Monitors network interfaces, IP addresses, RX/TX counters, default gateway, DNS,
-    and calculates live real-time network traffic throughput.
+    and calculates live real-time network traffic throughput in Mbps.
     """
     global _last_network_snapshot
 
     interfaces: List[Dict[str, Any]] = []
     proc_net_dev: Dict[str, Dict[str, int]] = {}
 
-    total_rx_bytes = 0
-    total_tx_bytes = 0
-
+    # 1. Read /proc/net/dev
     if os.path.exists("/proc/net/dev"):
         try:
             with open("/proc/net/dev", "r") as f:
@@ -129,13 +143,42 @@ def get_network_info() -> Dict[str, Any]:
                                 "tx_errs": fields[10],
                                 "tx_drop": fields[11],
                             }
-                            if iface != "lo":
-                                total_rx_bytes += fields[0]
-                                total_tx_bytes += fields[8]
         except Exception:
             pass
 
-    # Calculate real-time traffic throughput (MB/s)
+    # 2. Check Wi-Fi interface fallback for 0 counters
+    wifi_iface = detect_wifi_interface()
+    if wifi_iface:
+        sys_rx, sys_tx = get_iface_sys_bytes(wifi_iface)
+        if wifi_iface not in proc_net_dev:
+            proc_net_dev[wifi_iface] = {
+                "rx_bytes": sys_rx, "rx_packets": 0, "rx_errs": 0, "rx_drop": 0,
+                "tx_bytes": sys_tx, "tx_packets": 0, "tx_errs": 0, "tx_drop": 0
+            }
+        else:
+            if proc_net_dev[wifi_iface]["rx_bytes"] == 0 and sys_rx > 0:
+                proc_net_dev[wifi_iface]["rx_bytes"] = sys_rx
+            if proc_net_dev[wifi_iface]["tx_bytes"] == 0 and sys_tx > 0:
+                proc_net_dev[wifi_iface]["tx_bytes"] = sys_tx
+
+        # If still 0, parse iw link RX/TX bytes
+        if proc_net_dev[wifi_iface]["rx_bytes"] == 0 or proc_net_dev[wifi_iface]["tx_bytes"] == 0:
+            iw_data = parse_iw_link(wifi_iface)
+            if iw_data["rx_bytes"] > 0:
+                proc_net_dev[wifi_iface]["rx_bytes"] = iw_data["rx_bytes"]
+            if iw_data["tx_bytes"] > 0:
+                proc_net_dev[wifi_iface]["tx_bytes"] = iw_data["tx_bytes"]
+
+    # 3. Sum non-loopback RX/TX total bytes
+    total_rx_bytes = 0
+    total_tx_bytes = 0
+    for iface, metrics in proc_net_dev.items():
+        if iface != "lo":
+            total_rx_bytes += metrics["rx_bytes"]
+            total_tx_bytes += metrics["tx_bytes"]
+
+    # 4. Calculate real-time traffic throughput in Mbps
+    # Formula: Mbps = (bytes_delta * 8) / (dt * 1,000,000)
     now = time.time()
     download_mbps = 0.0
     upload_mbps = 0.0
@@ -143,10 +186,15 @@ def get_network_info() -> Dict[str, Any]:
     if _last_network_snapshot["timestamp"] > 0:
         dt = now - _last_network_snapshot["timestamp"]
         if dt > 0:
-            rx_delta = max(0, total_rx_bytes - _last_network_snapshot["rx_bytes"])
-            tx_delta = max(0, total_tx_bytes - _last_network_snapshot["tx_bytes"])
-            download_mbps = round((rx_delta / dt) / (1024 * 1024), 2) # MB/s
-            upload_mbps = round((tx_delta / dt) / (1024 * 1024), 2)   # MB/s
+            last_rx = _last_network_snapshot["rx_bytes"]
+            last_tx = _last_network_snapshot["tx_bytes"]
+
+            # Handle counter reset / wraparound
+            rx_delta = total_rx_bytes - last_rx if total_rx_bytes >= last_rx else 0
+            tx_delta = total_tx_bytes - last_tx if total_tx_bytes >= last_tx else 0
+
+            download_mbps = round((rx_delta * 8.0) / (dt * 1_000_000.0), 2)
+            upload_mbps = round((tx_delta * 8.0) / (dt * 1_000_000.0), 2)
 
     _last_network_snapshot = {
         "timestamp": now,
@@ -154,7 +202,7 @@ def get_network_info() -> Dict[str, Any]:
         "tx_bytes": total_tx_bytes
     }
 
-    # Gather interfaces via ip -j addr
+    # 5. Gather interfaces via ip -j addr
     ip_json = run_cmd(["ip", "-j", "addr"])
     if ip_json:
         try:
