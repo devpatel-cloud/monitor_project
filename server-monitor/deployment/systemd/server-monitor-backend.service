@@ -1,0 +1,14 @@
+[Unit]
+Description=Server Monitor Native FastAPI Backend Service
+After=network.target network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/server-monitor/server-monitor
+ExecStart=/opt/server-monitor/venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

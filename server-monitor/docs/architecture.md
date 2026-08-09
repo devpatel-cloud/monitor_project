@@ -1,42 +1,43 @@
-# Rocky Linux 9.8 Production Architecture Overview
+# Native Rocky Linux 9.8 Deployment Architecture
 
-The Server Monitor Platform is deployed at `/opt/server-monitor/server-monitor` on Rocky Linux 9.8 and accessible via `https://sanjaya-server.duckdns.org/monitor/`.
+The Server Monitor Platform is deployed natively at `/opt/server-monitor/server-monitor` on Rocky Linux 9.8.
 
-## Non-Conflicting Nginx Topology
-
-The platform integrates into the existing Sanjaya Nginx setup via a location snippet (`/etc/nginx/default.d/server-monitor.conf`), preserving the existing Sanjaya root application at `https://sanjaya-server.duckdns.org`.
+## Native Application Topology
 
 ```
-                        https://sanjaya-server.duckdns.org
-                                       │
-                     ┌─────────────────┴─────────────────┐
-                     │                                   │
-                     ▼                                   ▼
-             Existing Sanjaya                     Server Monitor Platform
-                   (/)                                 (/monitor/)
-                                                         │
-                                        ┌────────────────┴────────────────┐
-                                        │                                 │
-                                        ▼                                 ▼
-                                Frontend Route                     Backend API Route
-                                  (/monitor/)                     (/monitor/api/v1/)
-                                        │                                 │
-                                        ▼                                 ▼
-                              127.0.0.1:3000                    127.0.0.1:8000
-                            (React Container)                 (FastAPI Container)
-                                                                          │
-                                                                          ▼
-                                                                   SQLite Database
-                                                            (/var/lib/server-monitor/monitor.db)
-                                                                          ▲
-                                                                          │
-                                                               ┌──────────┴──────────┐
-                                                               │ Host Python Agent   │
-                                                               │ (Native systemd)    │
-                                                               └─────────────────────┘
+                         PUBLIC INTERNET / IPv6
+                                    │
+                            HTTPS (Port 443)
+                                    │
+                                    ▼
+                         Host Nginx Web Server
+                 (/etc/nginx/default.d/server-monitor.conf)
+                                    │
+                  ┌─────────────────┴─────────────────┐
+                  │                                   │
+                  ▼                                   ▼
+          Frontend Static SPA                   FastAPI Backend API
+        (/monitor/ -> dist/)                 (/monitor/api/v1/)
+                  │                                   │
+                  ▼                                   ▼
+   /opt/server-monitor/server-monitor/         127.0.0.1:8000
+             frontend/dist/                 (server-monitor-backend.service)
+                                                      │
+                                                      ▼
+                                               SQLite Database
+                                         (/var/lib/server-monitor/monitor.db)
+                                                      ▲
+                                                      │
+                                           ┌──────────┴──────────┐
+                                           │ Host Python Agent   │
+                                           │ (Native systemd)    │
+                                           └─────────────────────┘
 ```
 
-## Systemd Master Control
+## Systemd Control Interface
+
+Sanjaya-style master systemd controls managing native backend and host agent:
+
 ```bash
 sudo systemctl start server-monitor
 sudo systemctl stop server-monitor

@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/opt/server-monitor/server-monitor
-ExecStart=/usr/bin/python3 -m agent.main --interval 10
+ExecStart=/opt/server-monitor/venv/bin/python -m agent.main --interval 10
 Restart=always
 RestartSec=5s
 

@@ -1,18 +1,29 @@
 #!/usr/bin/env bash
-# Update script for Server Monitor Platform
+# Update Script for Native Server Monitor Platform
 set -euo pipefail
 
 PROJECT_DIR="/opt/server-monitor/server-monitor"
+VENV_DIR="/opt/server-monitor/venv"
 
 if [ -d "$PROJECT_DIR" ]; then
   cd "$PROJECT_DIR"
-  echo "Pulling latest code changes..."
+  echo "1. Pulling latest code changes..."
   git pull origin main || true
 
-  echo "Rebuilding Docker images..."
-  docker compose build
+  echo "2. Updating Python virtual environment dependencies..."
+  if [ -d "$VENV_DIR" ]; then
+    "$VENV_DIR/bin/pip" install -r backend/requirements.txt
+  fi
 
-  echo "Restarting Master Server Monitor Service..."
+  echo "3. Rebuilding React frontend static assets..."
+  if [ -d "frontend" ]; then
+    cd frontend
+    npm install
+    npm run build
+    cd "$PROJECT_DIR"
+  fi
+
+  echo "4. Restarting Master Server Monitor Service..."
   systemctl restart server-monitor.service
   echo "✅ Server Monitor Platform updated successfully!"
 else

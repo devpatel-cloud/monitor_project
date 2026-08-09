@@ -12,6 +12,7 @@ echo "Creating backup archive..."
 tar -czf "$BACKUP_FILE" \
   --ignore-failed-read \
   /etc/server-monitor/ \
+  /etc/nginx/default.d/server-monitor.conf \
   /var/lib/server-monitor/monitor.db 2>/dev/null || true
 
 echo "✅ Backup successfully created at: $BACKUP_FILE"
