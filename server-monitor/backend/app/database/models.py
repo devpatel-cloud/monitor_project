@@ -125,13 +125,18 @@ class SystemEvent(Base):
 class AlertRecord(Base):
     __tablename__ = "alerts"
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(Float, index=True, nullable=False)
+    target_key = Column(String, index=True, nullable=True) # Unique key for deduplication e.g. service:nginx, cpu:high
+    timestamp = Column(Float, index=True, nullable=False) # First triggered timestamp
+    started_at = Column(Float, nullable=True)
     subsystem = Column(String) # CPU, RAM, Storage, Temp, SMART, Docker, Services, IPv6, DuckDNS
     severity = Column(String) # INFO, WARNING, CRITICAL
     title = Column(String)
     message = Column(Text)
+    status = Column(String, default="ACTIVE") # ACTIVE, ACKNOWLEDGED, RESOLVED
     resolved = Column(Boolean, default=False)
     resolved_at = Column(Float, nullable=True)
+    acknowledged_at = Column(Float, nullable=True)
+    acknowledged_by = Column(String, nullable=True)
 
 class DuckDNSStatus(Base):
     __tablename__ = "duckdns_status"
@@ -142,3 +147,13 @@ class DuckDNSStatus(Base):
     duckdns_aaaa = Column(String)
     status = Column(String) # MATCH, MISMATCH, NO_IPV6, DNS_FAILURE
     last_update_status = Column(Text)
+
+class SpeedTestRecord(Base):
+    __tablename__ = "speed_tests"
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(Float, index=True, nullable=False)
+    download_mbps = Column(Float, nullable=False)
+    upload_mbps = Column(Float, nullable=False)
+    ping_ms = Column(Float, nullable=False)
+    jitter_ms = Column(Float, nullable=False)
+    tested_by = Column(String, default="admin")

@@ -22,6 +22,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       const res = await api.post('/auth/login', formData);
       if (res.data?.access_token) {
         localStorage.setItem('server_monitor_token', res.data.access_token);
+        localStorage.setItem('server_monitor_role', res.data.role || 'viewer');
         onLoginSuccess(res.data.access_token, res.data.username);
       }
     } catch (err: any) {

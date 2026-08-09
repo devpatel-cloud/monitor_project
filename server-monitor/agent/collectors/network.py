@@ -1,8 +1,15 @@
 import os
 import json
 import socket
+import time
 import subprocess
 from typing import Dict, Any, List
+
+_last_network_snapshot = {
+    "timestamp": 0.0,
+    "rx_bytes": 0,
+    "tx_bytes": 0
+}
 
 def run_cmd(cmd: List[str]) -> str:
     try:
@@ -13,6 +20,28 @@ def run_cmd(cmd: List[str]) -> str:
         pass
     return ""
 
+def get_default_gateway() -> str:
+    out = run_cmd(["ip", "route", "show", "default"])
+    if out:
+        parts = out.split()
+        if len(parts) >= 3 and parts[0] == "default" and parts[1] == "via":
+            return parts[2]
+    return "Unavailable"
+
+def get_dns_servers() -> List[str]:
+    dns = []
+    if os.path.exists("/etc/resolv.conf"):
+        try:
+            with open("/etc/resolv.conf", "r") as f:
+                for line in f:
+                    if line.startswith("nameserver"):
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            dns.append(parts[1])
+        except Exception:
+            pass
+    return dns if dns else ["1.1.1.1", "8.8.8.8"]
+
 def check_internet_connectivity() -> Dict[str, Any]:
     """
     Checks external IPv4 and IPv6 internet connectivity and DNS resolution.
@@ -20,21 +49,18 @@ def check_internet_connectivity() -> Dict[str, Any]:
     ipv4_online = False
     ipv6_online = False
     dns_ok = False
-    latency_ms = 0.0
 
-    # Test IPv4 connectivity & latency
+    # Test IPv4 connectivity
     try:
-        start = socket.get_addrinfo("1.1.1.1", 53, socket.AF_INET)
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(2.0)
-        t0 = socket.get_addrinfo("1.1.1.1", 80, socket.AF_INET)
-        s.connect(("1.1.1.1", 80))
+        s.connect(("1.1.1.1", 53))
         s.close()
         ipv4_online = True
     except Exception:
         pass
 
-    # Test IPv6 connectivity (Google IPv6 DNS / Cloudflare IPv6 DNS)
+    # Test IPv6 connectivity
     try:
         s6 = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         s6.settimeout(2.0)
@@ -46,21 +72,20 @@ def check_internet_connectivity() -> Dict[str, Any]:
 
     # Test DNS resolution
     try:
-        t_start = socket.get_addrinfo("duckdns.org", 80)
+        socket.getaddrinfo("duckdns.org", 80)
         dns_ok = True
     except Exception:
         pass
 
     return {
-        "ipv4_online": ipv4_online,
-        "ipv6_online": ipv6_online,
+        "ipv4": ipv4_online,
+        "ipv6": ipv6_online,
+        "gateway": get_default_gateway() != "Unavailable",
+        "internet": ipv4_online or ipv6_online,
         "dns_resolution": dns_ok
     }
 
 def get_listening_ports() -> List[Dict[str, Any]]:
-    """
-    Parses listening TCP/UDP ports via ss -tuln.
-    """
     ports = []
     output = run_cmd(["ss", "-tuln"])
     if output:
@@ -68,20 +93,22 @@ def get_listening_ports() -> List[Dict[str, Any]]:
         for line in lines[1:]:
             parts = line.split()
             if len(parts) >= 5:
-                proto = parts[0]
-                local_addr = parts[4]
-                ports.append({"proto": proto, "address": local_addr})
+                ports.append({"proto": parts[0], "address": parts[4]})
     return ports
 
 def get_network_info() -> Dict[str, Any]:
     """
-    Monitors all network interfaces (wlp2s0, enp*, docker0, lo, veth*),
-    IP addresses, RX/TX counters, drops, listening ports, and internet availability.
+    Monitors network interfaces, IP addresses, RX/TX counters, default gateway, DNS,
+    and calculates live real-time network traffic throughput.
     """
-    interfaces: List[Dict[str, Any]] = []
+    global _last_network_snapshot
 
-    # Read /proc/net/dev for RX/TX metrics
+    interfaces: List[Dict[str, Any]] = []
     proc_net_dev: Dict[str, Dict[str, int]] = {}
+
+    total_rx_bytes = 0
+    total_tx_bytes = 0
+
     if os.path.exists("/proc/net/dev"):
         try:
             with open("/proc/net/dev", "r") as f:
@@ -102,10 +129,32 @@ def get_network_info() -> Dict[str, Any]:
                                 "tx_errs": fields[10],
                                 "tx_drop": fields[11],
                             }
+                            if iface != "lo":
+                                total_rx_bytes += fields[0]
+                                total_tx_bytes += fields[8]
         except Exception:
             pass
 
-    # Gather interface addresses via ip -j addr
+    # Calculate real-time traffic throughput (MB/s)
+    now = time.time()
+    download_mbps = 0.0
+    upload_mbps = 0.0
+
+    if _last_network_snapshot["timestamp"] > 0:
+        dt = now - _last_network_snapshot["timestamp"]
+        if dt > 0:
+            rx_delta = max(0, total_rx_bytes - _last_network_snapshot["rx_bytes"])
+            tx_delta = max(0, total_tx_bytes - _last_network_snapshot["tx_bytes"])
+            download_mbps = round((rx_delta / dt) / (1024 * 1024), 2) # MB/s
+            upload_mbps = round((tx_delta / dt) / (1024 * 1024), 2)   # MB/s
+
+    _last_network_snapshot = {
+        "timestamp": now,
+        "rx_bytes": total_rx_bytes,
+        "tx_bytes": total_tx_bytes
+    }
+
+    # Gather interfaces via ip -j addr
     ip_json = run_cmd(["ip", "-j", "addr"])
     if ip_json:
         try:
@@ -114,7 +163,7 @@ def get_network_info() -> Dict[str, Any]:
                 ifname = if_info.get("ifname", "")
                 operstate = if_info.get("operstate", "DOWN").upper()
                 mac = if_info.get("address", "")
-                
+
                 ipv4_addrs = []
                 ipv6_addrs = []
                 for addr_info in if_info.get("addr_info", []):
@@ -149,10 +198,18 @@ def get_network_info() -> Dict[str, Any]:
             pass
 
     connectivity = check_internet_connectivity()
-    listening_ports = get_listening_ports()
+    gateway = get_default_gateway()
+    dns = get_dns_servers()
+    ports = get_listening_ports()
 
     return {
         "interfaces": interfaces,
         "connectivity": connectivity,
-        "listening_ports": listening_ports
+        "gateway": gateway,
+        "dns": dns,
+        "traffic": {
+            "download_mbps": download_mbps,
+            "upload_mbps": upload_mbps
+        },
+        "listening_ports": ports
     }
