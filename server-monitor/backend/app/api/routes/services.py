@@ -1,6 +1,10 @@
+import time
 import subprocess
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy.orm import Session
 from backend.app.agent_bridge import get_latest_snapshot
+from backend.app.database.database import get_db
+from backend.app.database.models import AuditLogRecord
 from backend.app.core.security import get_current_user, require_admin
 
 router = APIRouter(prefix="/services", tags=["services"])
@@ -28,27 +32,55 @@ def validate_service_name(service_name: str):
         )
     return clean_name
 
-def execute_systemctl(action: str, service_name: str) -> dict:
+def execute_systemctl(action: str, service_name: str, db: Session, user: dict, req: Request) -> dict:
     clean_name = validate_service_name(service_name)
+    username = user.get("username", "admin")
+    client_ip = req.client.host if req.client else "127.0.0.1"
+    now = time.time()
+
     cmd = ["sudo", "systemctl", action, f"{clean_name}.service"]
+    res_code = -1
+    err_msg = ""
+
     try:
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
-        if res.returncode == 0:
-            return {"status": "success", "action": action, "service": clean_name}
-        else:
-            # Try without sudo fallback if already root
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+        res_code = res.returncode
+        if res_code != 0:
+            # Fallback direct systemctl if running as root
             cmd = ["systemctl", action, f"{clean_name}.service"]
-            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
-            if res.returncode == 0:
-                return {"status": "success", "action": action, "service": clean_name}
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to {action} {clean_name}: {res.stderr.strip()}"
-            )
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+            res_code = res.returncode
+            err_msg = res.stderr.strip()
     except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=500, detail=str(e))
+        err_msg = str(e)
+
+    res_status = "success" if res_code == 0 else "failed"
+
+    # Persist audit record in SQLite
+    audit = AuditLogRecord(
+        timestamp=now,
+        user=username,
+        action=action,
+        service=clean_name,
+        result=res_status,
+        ip_address=client_ip
+    )
+    db.add(audit)
+    db.commit()
+
+    if res_code == 0:
+        return {
+            "success": True,
+            "status": "success",
+            "action": action,
+            "service": clean_name,
+            "message": f"Service {clean_name} {action}ed successfully"
+        }
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to {action} {clean_name}: {err_msg}"
+        )
 
 @router.get("")
 def get_services():
@@ -56,24 +88,37 @@ def get_services():
     return snapshot.get("services", {})
 
 @router.post("/{service}/start")
-def start_service(service: str, current_user: dict = Depends(require_admin)):
-    return execute_systemctl("start", service)
+def start_service(service: str, req: Request, db: Session = Depends(get_db), current_user: dict = Depends(require_admin)):
+    return execute_systemctl("start", service, db, current_user, req)
 
 @router.post("/{service}/stop")
-def stop_service(service: str, current_user: dict = Depends(require_admin)):
-    return execute_systemctl("stop", service)
+def stop_service(service: str, req: Request, db: Session = Depends(get_db), current_user: dict = Depends(require_admin)):
+    return execute_systemctl("stop", service, db, current_user, req)
 
 @router.post("/{service}/restart")
-def restart_service(service: str, current_user: dict = Depends(require_admin)):
-    return execute_systemctl("restart", service)
+def restart_service(service: str, req: Request, db: Session = Depends(get_db), current_user: dict = Depends(require_admin)):
+    return execute_systemctl("restart", service, db, current_user, req)
 
 @router.post("/{service}/enable")
-def enable_service(service: str, current_user: dict = Depends(require_admin)):
-    return execute_systemctl("enable", service)
+def enable_service(service: str, req: Request, db: Session = Depends(get_db), current_user: dict = Depends(require_admin)):
+    return execute_systemctl("enable", service, db, current_user, req)
 
 @router.post("/{service}/disable")
-def disable_service(service: str, current_user: dict = Depends(require_admin)):
-    return execute_systemctl("disable", service)
+def disable_service(service: str, req: Request, db: Session = Depends(get_db), current_user: dict = Depends(require_admin)):
+    return execute_systemctl("disable", service, db, current_user, req)
+
+@router.get("/audit-logs")
+def get_audit_logs(db: Session = Depends(get_db), current_user: dict = Depends(require_admin)):
+    records = db.query(AuditLogRecord).order_by(AuditLogRecord.timestamp.desc()).limit(50).all()
+    return [{
+        "id": r.id,
+        "timestamp": r.timestamp,
+        "user": r.user,
+        "action": r.action,
+        "service": r.service,
+        "result": r.result,
+        "ip_address": r.ip_address
+    } for r in records]
 
 @router.get("/{service}/logs")
 def get_service_logs(

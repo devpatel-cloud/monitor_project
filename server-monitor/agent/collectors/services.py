@@ -14,11 +14,24 @@ DEFAULT_SERVICES = [
 
 def check_service_status(service_name: str) -> Dict[str, Any]:
     """
-    Queries systemctl is-active and systemctl is-failed for a systemd service.
+    Queries systemctl is-active and is-enabled for a systemd service.
+    Special handling: if service is oneshot (e.g. duckdns-ipv6), checks duckdns-ipv6.timer.
     """
     state = "UNKNOWN"
-    sub_state = "unknown"
     enabled = False
+    is_timer_active = False
+
+    # Special handling for oneshot timer services
+    if service_name == "duckdns-ipv6" or service_name == "duckdns-ipv6.service":
+        try:
+            res_timer = subprocess.run(
+                ["systemctl", "is-active", "duckdns-ipv6.timer"],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=3
+            )
+            if res_timer.stdout.strip() in ["active", "activating"]:
+                is_timer_active = True
+        except Exception:
+            pass
 
     try:
         res = subprocess.run(
@@ -29,28 +42,29 @@ def check_service_status(service_name: str) -> Dict[str, Any]:
         if stdout == "active":
             state = "RUNNING"
         elif stdout == "inactive":
-            state = "STOPPED"
+            # If oneshot service is inactive but its timer is active, treat as RUNNING/SCHEDULED (Healthy!)
+            state = "RUNNING" if is_timer_active else "STOPPED"
         elif stdout == "failed":
             state = "FAILED"
-        elif stdout == "activating" or stdout == "reloading":
+        elif stdout in ["activating", "reloading"]:
             state = "STARTING"
         else:
-            state = "STOPPED"
+            state = "RUNNING" if is_timer_active else "STOPPED"
 
-        # Check if enabled
         res_en = subprocess.run(
             ["systemctl", "is-enabled", service_name],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=3
         )
-        if res_en.stdout.strip() == "enabled":
+        if res_en.stdout.strip() in ["enabled", "linked", "static"]:
             enabled = True
     except Exception:
-        state = "UNKNOWN"
+        state = "RUNNING" if is_timer_active else "UNKNOWN"
 
     return {
         "name": service_name,
         "state": state,
-        "enabled": enabled
+        "enabled": enabled,
+        "timer_active": is_timer_active if service_name.startswith("duckdns") else None
     }
 
 def get_services_info(custom_services: List[str] = None) -> Dict[str, Any]:

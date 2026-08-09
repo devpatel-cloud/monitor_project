@@ -168,29 +168,41 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div className="grid-2">
         <div className="card">
           <div className="card-title">CPU Utilization History</div>
-          <div style={{ height: 220, width: '100%' }}>
-            <ResponsiveContainer>
-              <AreaChart data={cpuHistory}>
-                <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={11} />
-                <YAxis stroke="var(--text-muted)" fontSize={11} domain={[0, 100]} />
-                <Tooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }} />
-                <Area type="monotone" dataKey="cpu" name="CPU Usage %" stroke="var(--accent-primary)" fill="var(--accent-primary-glow)" />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div style={{ height: 220, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {cpuHistory.length === 0 ? (
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center' }}>
+                No historical data available yet.<br />Collecting metrics...
+              </div>
+            ) : (
+              <ResponsiveContainer>
+                <AreaChart data={cpuHistory}>
+                  <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={11} />
+                  <YAxis stroke="var(--text-muted)" fontSize={11} domain={[0, 100]} />
+                  <Tooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }} />
+                  <Area type="monotone" dataKey="cpu" name="CPU Usage %" stroke="var(--accent-primary)" fill="var(--accent-primary-glow)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
         <div className="card">
           <div className="card-title">Memory Utilization History</div>
-          <div style={{ height: 220, width: '100%' }}>
-            <ResponsiveContainer>
-              <AreaChart data={memHistory}>
-                <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={11} />
-                <YAxis stroke="var(--text-muted)" fontSize={11} domain={[0, 100]} />
-                <Tooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }} />
-                <Area type="monotone" dataKey="mem" name="Memory Usage %" stroke="var(--color-success)" fill="var(--color-success-bg)" />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div style={{ height: 220, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {memHistory.length === 0 ? (
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center' }}>
+                No historical data available yet.<br />Collecting metrics...
+              </div>
+            ) : (
+              <ResponsiveContainer>
+                <AreaChart data={memHistory}>
+                  <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={11} />
+                  <YAxis stroke="var(--text-muted)" fontSize={11} domain={[0, 100]} />
+                  <Tooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }} />
+                  <Area type="monotone" dataKey="mem" name="Memory Usage %" stroke="var(--color-success)" fill="var(--color-success-bg)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>

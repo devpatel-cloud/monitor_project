@@ -157,3 +157,13 @@ class SpeedTestRecord(Base):
     ping_ms = Column(Float, nullable=False)
     jitter_ms = Column(Float, nullable=False)
     tested_by = Column(String, default="admin")
+
+class AuditLogRecord(Base):
+    __tablename__ = "audit_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(Float, index=True, nullable=False)
+    user = Column(String, nullable=False)
+    action = Column(String, nullable=False) # start, stop, restart, enable, disable
+    service = Column(String, nullable=False)
+    result = Column(String, nullable=False) # success, failed
+    ip_address = Column(String, nullable=True)

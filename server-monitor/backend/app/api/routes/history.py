@@ -8,10 +8,25 @@ from backend.app.services.history import (
 
 router = APIRouter(prefix="/history", tags=["history"])
 
+@router.get("")
+def get_combined_history(
+    range: Optional[str] = Query("15m", description="Time range string (e.g. 15m, 30m, 1h, 3h, 6h, 12h, 24h)"),
+    db: Session = Depends(get_db)
+):
+    selected_range = range or "15m"
+    return {
+        "range": selected_range,
+        "cpu": get_cpu_history(db, range_str=selected_range),
+        "memory": get_memory_history(db, range_str=selected_range),
+        "temperature": get_temperature_history(db, range_str=selected_range),
+        "network": get_network_history(db, range_str=selected_range),
+        "disk": get_disk_io_history(db, range_str=selected_range)
+    }
+
 @router.get("/cpu")
 def history_cpu(
     range: Optional[str] = Query("15m", description="Time range string (e.g. 15m, 30m, 1h, 3h, 6h, 12h, 24h)"),
-    range_hours: Optional[float] = Query(None, description="Legacy fallback range in hours"),
+    range_hours: Optional[float] = Query(None),
     db: Session = Depends(get_db)
 ):
     selected_range = range if range else (f"{range_hours}h" if range_hours else "15m")
