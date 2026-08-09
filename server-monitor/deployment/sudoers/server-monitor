@@ -1,0 +1,2 @@
+# Sudoers policy for Server Monitor Agent on Rocky Linux
+server-monitor ALL=(ALL) NOPASSWD: /usr/sbin/smartctl, /usr/sbin/pvs, /usr/sbin/vgs, /usr/sbin/lvs, /usr/bin/systemctl, /usr/bin/firewall-cmd

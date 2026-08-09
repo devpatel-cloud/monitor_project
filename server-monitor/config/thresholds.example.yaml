@@ -1,0 +1,20 @@
+# System Metric Alert Thresholds
+cpu:
+  warning_percent: 90.0
+  critical_percent: 95.0
+  sustained_seconds: 30
+
+memory:
+  warning_percent: 90.0
+  critical_percent: 95.0
+
+storage:
+  warning_percent: 85.0
+  critical_percent: 95.0
+
+temperature:
+  warning_celsius: 80.0
+  critical_celsius: 90.0
+
+battery:
+  low_warning_percent: 20.0

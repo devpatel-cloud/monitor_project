@@ -1,0 +1,25 @@
+name: Frontend Build & Typecheck
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: Install Frontend Dependencies
+        run: |
+          cd server-monitor/frontend
+          npm ci
+      - name: Build Frontend Application
+        run: |
+          cd server-monitor/frontend
+          npm run build

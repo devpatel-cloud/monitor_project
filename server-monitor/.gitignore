@@ -1,0 +1,50 @@
+# Python Bytecode & Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+
+# Database & Storage
+*.db
+*.sqlite
+*.sqlite3
+/var/lib/server-monitor/
+monitor.db
+
+# Config & Secrets (Never commit production credentials or tokens)
+config/config.yaml
+config/thresholds.yaml
+.env
+.env.local
+.env.production
+*.pem
+*.key
+
+# Frontend Node & Vite
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.cache/
+node_modules/
+dist/
+.npm
+
+# Testing & Logs
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+/var/log/server-monitor/
+
+# IDEs & System Files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
