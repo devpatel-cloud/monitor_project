@@ -3,23 +3,36 @@ version: '3.8'
 services:
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: server-monitor-backend
+    restart: always
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       - DB_PATH=/var/lib/server-monitor/monitor.db
     volumes:
       - monitor-data:/var/lib/server-monitor
+    networks:
+      - server-monitor-net
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    container_name: server-monitor-frontend
+    restart: always
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
     depends_on:
       - backend
+    networks:
+      - server-monitor-net
+
+networks:
+  server-monitor-net:
+    driver: bridge
 
 volumes:
   monitor-data:
+    driver: local

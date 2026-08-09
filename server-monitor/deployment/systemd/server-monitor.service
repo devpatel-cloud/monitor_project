@@ -1,14 +1,26 @@
 [Unit]
-Description=Server Monitor FastAPI Backend Service
-After=network.target network-online.target
+Description=Server Monitor Platform Master Service (Docker + Collector)
+After=network.target network-online.target docker.service
+Requires=docker.service
+Wants=server-monitor-collector.service
 
 [Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/server-monitor/backend
-ExecStart=/usr/bin/python3 -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
-Restart=always
-RestartSec=5s
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/server-monitor/server-monitor
+
+# 1. Start Docker containers (Backend + Frontend)
+ExecStartPre=/usr/bin/docker compose up -d --remove-orphans
+
+# 2. Start host monitoring collector service
+ExecStart=/usr/bin/systemctl start server-monitor-collector.service
+
+# 3. Clean Shutdown: stop collector and bring down docker containers
+ExecStop=/usr/bin/systemctl stop server-monitor-collector.service
+ExecStopPost=/usr/bin/docker compose down
+
+# Reload action
+ExecReload=/usr/bin/docker compose restart
 
 [Install]
 WantedBy=multi-user.target

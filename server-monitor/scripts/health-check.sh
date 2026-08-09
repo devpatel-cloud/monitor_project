@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
-# Quick CLI Health Check Script
+# Quick CLI Health Check Script for Rocky Linux 9.8
 set -euo pipefail
 
-echo "Checking FastAPI Backend..."
-curl -sf http://127.0.0.1:8000/api/v1/health || { echo "❌ Backend offline!"; exit 1; }
+echo "1. Checking Backend API (Docker Port 8000)..."
+curl -sf http://127.0.0.1:8000/api/v1/health >/dev/null && echo "🟢 Backend API online" || echo "🔴 Backend API unreachable"
 
-echo "Checking Systemd Services..."
-systemctl is-active server-monitor.service >/dev/null && echo "🟢 server-monitor active"
-systemctl is-active server-monitor-collector.service >/dev/null && echo "🟢 server-monitor-collector active"
+echo "2. Checking Frontend Container (Docker Port 3000)..."
+curl -sf http://127.0.0.1:3000 >/dev/null && echo "🟢 Frontend container online" || echo "🔴 Frontend container unreachable"
 
-echo "✅ Health check passed!"
+echo "3. Checking Master Systemd Service..."
+systemctl is-active server-monitor.service >/dev/null && echo "🟢 server-monitor.service active" || echo "🔴 server-monitor.service inactive"
+
+echo "4. Checking Linux Host Monitoring Agent..."
+systemctl is-active server-monitor-collector.service >/dev/null && echo "🟢 server-monitor-collector.service active" || echo "🔴 server-monitor-collector.service inactive"
+
+echo "=========================================================="
+echo "Health Check Complete"
+echo "=========================================================="

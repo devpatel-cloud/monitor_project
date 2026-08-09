@@ -1,11 +1,11 @@
 [Unit]
-Description=Server Monitor Linux Agent Collector Service
+Description=Server Monitor Linux Host Collector Service
 After=network.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/server-monitor
+WorkingDirectory=/opt/server-monitor/server-monitor
 ExecStart=/usr/bin/python3 -m agent.main --interval 10
 Restart=always
 RestartSec=5s

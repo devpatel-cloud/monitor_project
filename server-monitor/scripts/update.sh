@@ -2,9 +2,20 @@
 # Update script for Server Monitor Platform
 set -euo pipefail
 
-echo "Updating Server Monitor Platform..."
-git pull origin main || true
+PROJECT_DIR="/opt/server-monitor/server-monitor"
 
-systemctl restart server-monitor.service
-systemctl restart server-monitor-collector.service
-echo "✅ Server Monitor updated successfully!"
+if [ -d "$PROJECT_DIR" ]; then
+  cd "$PROJECT_DIR"
+  echo "Pulling latest code changes..."
+  git pull origin main || true
+
+  echo "Rebuilding Docker images..."
+  docker compose build
+
+  echo "Restarting Master Server Monitor Service..."
+  systemctl restart server-monitor.service
+  echo "✅ Server Monitor Platform updated successfully!"
+else
+  echo "Error: Directory $PROJECT_DIR not found."
+  exit 1
+fi
