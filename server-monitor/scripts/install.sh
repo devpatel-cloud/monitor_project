@@ -31,23 +31,41 @@ fi
 echo "3. Building Docker containers (Backend & Frontend)..."
 docker compose build
 
-echo "4. Safely installing Nginx application configuration..."
-if [ -d "/etc/nginx/conf.d" ]; then
-  cp deployment/nginx/server-monitor.conf /etc/nginx/conf.d/server-monitor.conf
-  echo "Checking Nginx configuration syntax..."
-  nginx -t && systemctl reload nginx || echo "Warning: Nginx reload deferred. Please verify /etc/nginx/conf.d/server-monitor.conf"
+echo "4. Safely installing Nginx location snippet (Non-conflicting)..."
+# On RHEL/Rocky Linux Nginx, /etc/nginx/default.d/ snippets are automatically included
+# inside the main server block without creating duplicate server_name or listen directives.
+SNIPPET_DIR="/etc/nginx/default.d"
+SNIPPETS_ALT="/etc/nginx/snippets"
+
+if [ -d "$SNIPPET_DIR" ]; then
+  cp deployment/nginx/server-monitor.conf "$SNIPPET_DIR/server-monitor.conf"
+  echo "Installed location snippet to $SNIPPET_DIR/server-monitor.conf"
+elif [ -d "$SNIPPETS_ALT" ]; then
+  cp deployment/nginx/location-snippet.conf "$SNIPPETS_ALT/server-monitor-location.conf"
+  echo "Installed location snippet to $SNIPPETS_ALT/server-monitor-location.conf"
 else
-  echo "Note: /etc/nginx/conf.d directory not found. Nginx configuration snippet available at $PROJECT_DIR/deployment/nginx/server-monitor.conf"
+  mkdir -p "$SNIPPETS_ALT"
+  cp deployment/nginx/location-snippet.conf "$SNIPPETS_ALT/server-monitor-location.conf"
+  echo "Installed location snippet to $SNIPPETS_ALT/server-monitor-location.conf"
 fi
 
-echo "5. Installing systemd unit files..."
+echo "5. Testing Nginx configuration syntax..."
+if nginx -t; then
+  echo "Nginx configuration syntax test passed. Reloading Nginx safely..."
+  systemctl reload nginx
+else
+  echo "❌ Error: nginx -t failed! Preserving existing Nginx configuration. Nginx reload aborted."
+  exit 1
+fi
+
+echo "6. Installing systemd unit files..."
 cp deployment/systemd/server-monitor-collector.service /etc/systemd/system/
 cp deployment/systemd/server-monitor.service /etc/systemd/system/
 cp deployment/systemd/server-monitor-cleanup.timer /etc/systemd/system/
 
 systemctl daemon-reload
 
-echo "6. Enabling Master Server Monitor Service..."
+echo "7. Enabling Master Server Monitor Service..."
 systemctl enable --now server-monitor.service
 
 echo ""
@@ -55,4 +73,5 @@ echo "=========================================================="
 echo "✅ Installation complete!"
 echo "Master Service: sudo systemctl status server-monitor"
 echo "Host Agent:    sudo systemctl status server-monitor-collector"
+echo "Web URL:       https://sanjaya-server.duckdns.org/monitor/"
 echo "=========================================================="

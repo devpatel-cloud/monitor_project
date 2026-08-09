@@ -86,7 +86,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/monitor">
       <Layout systemInfo={systemData} onLogout={handleLogout}>
         <Routes>
           <Route
