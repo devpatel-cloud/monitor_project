@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { Cpu, HardDrive, Thermometer, ShieldAlert, CheckCircle, AlertTriangle, Activity } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Cpu, HardDrive, Thermometer, Activity } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
+import api from '../api/client';
+import { TimeRangeSelector, TimeRangeValue } from '../components/TimeRangeSelector';
 
 interface DashboardProps {
   healthData: any;
@@ -19,27 +21,46 @@ export const Dashboard: React.FC<DashboardProps> = ({
   dockerData, servicesData, duckdnsData, alertsData
 }) => {
   const [showHealthModal, setShowHealthModal] = useState(false);
+  const [timeRange, setTimeRange] = useState<TimeRangeValue>('15m');
+  const [cpuHistory, setCpuHistory] = useState<any[]>([]);
+  const [memHistory, setMemHistory] = useState<any[]>([]);
+
+  const fetchHistories = async (range: TimeRangeValue) => {
+    try {
+      const [cpuRes, memRes] = await Promise.all([
+        api.get(`/history/cpu?range=${range}`),
+        api.get(`/history/memory?range=${range}`)
+      ]);
+
+      if (Array.isArray(cpuRes.data)) {
+        setCpuHistory(cpuRes.data.map(item => ({
+          time: new Date(item.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          cpu: roundVal(item.usage_percent)
+        })));
+      }
+
+      if (Array.isArray(memRes.data)) {
+        setMemHistory(memRes.data.map(item => ({
+          time: new Date(item.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          mem: roundVal(item.usage_percent)
+        })));
+      }
+    } catch (err) {
+      console.error("Failed to fetch graph histories:", err);
+    }
+  };
+
+  const roundVal = (v: any) => (typeof v === 'number' ? Math.round(v * 10) / 10 : 0);
+
+  useEffect(() => {
+    fetchHistories(timeRange);
+    const interval = setInterval(() => fetchHistories(timeRange), 10000);
+    return () => clearInterval(interval);
+  }, [timeRange]);
 
   const score = healthData?.health_score?.score ?? 96;
   const healthStatus = healthData?.health_score?.status ?? 'HEALTHY';
   const breakdown = healthData?.health_score?.breakdown ?? [];
-
-  // Sample real-time metric trend data
-  const sampleCpuHistory = [
-    { time: '10:50', cpu: 18.2 },
-    { time: '10:52', cpu: 24.5 },
-    { time: '10:54', cpu: 22.0 },
-    { time: '10:56', cpu: 28.4 },
-    { time: '10:58', cpu: cpuData?.usage_percent || 23.4 },
-  ];
-
-  const sampleMemHistory = [
-    { time: '10:50', mem: 62.1 },
-    { time: '10:52', mem: 63.4 },
-    { time: '10:54', mem: 64.0 },
-    { time: '10:56', mem: 63.8 },
-    { time: '10:58', mem: memoryData?.usage_percent || 64.2 },
-  ];
 
   const ramUsedGb = ((memoryData?.used_bytes || 4100000000) / 1073741824).toFixed(1);
   const ramTotalGb = ((memoryData?.total_bytes || 6400000000) / 1073741824).toFixed(1);
@@ -52,7 +73,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem' }}>
         <div className="card" style={{ flex: '1', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.25rem' }}>Rocky Linux 9.4 Server</h2>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.25rem' }}>Rocky Linux 9.8 Server</h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
               Primary Monitored Host • IPv6 Enabled • DuckDNS Synchronized
             </p>
@@ -137,31 +158,37 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
+      {/* Graphs Controls Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', marginTop: '0.5rem' }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Real-Time System Metrics Trends</h3>
+        <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
+      </div>
+
       {/* Graphs Grid */}
       <div className="grid-2">
         <div className="card">
-          <div className="card-title">CPU History (24 Hours)</div>
+          <div className="card-title">CPU Utilization History</div>
           <div style={{ height: 220, width: '100%' }}>
             <ResponsiveContainer>
-              <AreaChart data={sampleCpuHistory}>
-                <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={12} />
-                <YAxis stroke="var(--text-muted)" fontSize={12} domain={[0, 100]} />
+              <AreaChart data={cpuHistory}>
+                <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={11} />
+                <YAxis stroke="var(--text-muted)" fontSize={11} domain={[0, 100]} />
                 <Tooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }} />
-                <Area type="monotone" dataKey="cpu" stroke="var(--accent-primary)" fill="var(--accent-primary-glow)" />
+                <Area type="monotone" dataKey="cpu" name="CPU Usage %" stroke="var(--accent-primary)" fill="var(--accent-primary-glow)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         <div className="card">
-          <div className="card-title">Memory History (24 Hours)</div>
+          <div className="card-title">Memory Utilization History</div>
           <div style={{ height: 220, width: '100%' }}>
             <ResponsiveContainer>
-              <AreaChart data={sampleMemHistory}>
-                <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={12} />
-                <YAxis stroke="var(--text-muted)" fontSize={12} domain={[0, 100]} />
+              <AreaChart data={memHistory}>
+                <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={11} />
+                <YAxis stroke="var(--text-muted)" fontSize={11} domain={[0, 100]} />
                 <Tooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }} />
-                <Area type="monotone" dataKey="mem" stroke="var(--color-success)" fill="var(--color-success-bg)" />
+                <Area type="monotone" dataKey="mem" name="Memory Usage %" stroke="var(--color-success)" fill="var(--color-success-bg)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -169,7 +196,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Subsystem Quick Status Row */}
-      <div className="grid-4">
+      <div className="grid-4" style={{ marginTop: '1.5rem' }}>
         <div className="card">
           <div className="card-title">DOCKER ENGINE</div>
           <div style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.5rem' }}>
