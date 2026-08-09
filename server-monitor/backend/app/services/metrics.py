@@ -68,7 +68,14 @@ def calculate_health_score(snapshot: Dict[str, Any]) -> Dict[str, Any]:
 
     # Internet Connectivity penalty
     conn = snapshot.get("network", {}).get("connectivity", {})
-    if not conn.get("ipv4_online") and not conn.get("ipv6_online"):
+    is_online = (
+        bool(conn.get("internet")) or
+        bool(conn.get("ipv4")) or
+        bool(conn.get("ipv6")) or
+        bool(conn.get("ipv4_online")) or
+        bool(conn.get("ipv6_online"))
+    )
+    if not is_online:
         deductions += 30
         factors.append({"name": "Internet", "impact": -30, "reason": "No public internet connectivity"})
 
