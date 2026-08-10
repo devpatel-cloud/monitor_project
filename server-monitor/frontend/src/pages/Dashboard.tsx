@@ -27,6 +27,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [memHistory, setMemHistory] = useState<any[]>([]);
   const [netHistory, setNetHistory] = useState<any[]>([]);
   const [diskHistory, setDiskHistory] = useState<any[]>([]);
+  const [tempHistory, setTempHistory] = useState<any[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const fetchHistories = async (range: TimeRangeValue) => {
@@ -48,6 +49,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
           memPct: roundVal(item.usage_percent),
           usedGb: roundVal(item.used_bytes / 1073741824),
           totalGb: roundVal(item.total_bytes / 1073741824)
+        })));
+      }
+
+      if (Array.isArray(data.temperature)) {
+        setTempHistory(data.temperature.map((item: any) => ({
+          time: new Date(item.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          temp: item.cpu_temp_celsius || 0
         })));
       }
 
@@ -123,6 +131,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const cpuStats = calcStats(cpuHistory.map(i => i.cpu));
   const memStats = calcStats(memHistory.map(i => i.memPct));
+  const tempStats = calcStats(tempHistory.map(i => i.temp));
   const downStats = calcStats(netHistory.map(i => i.download));
   const upStats = calcStats(netHistory.map(i => i.upload));
   const readStats = calcStats(diskHistory.map(i => i.read));
@@ -228,7 +237,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
       </div>
 
-      {/* 4 Grafana-Style Real-Time Charts */}
+      {/* Grafana-Style Real-Time Charts Grid */}
       <div className="grid-2" style={{ gap: '1.5rem', marginBottom: '1.5rem' }}>
         {/* 1. CPU Chart */}
         <div className="card">
@@ -272,7 +281,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* 3. Network Throughput Chart */}
+        {/* 3. Temperature Chart */}
+        <div className="card">
+          <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Thermometer size={16} style={{ color: 'var(--color-warning)' }} />
+              CPU TEMPERATURE TREND (°C)
+            </span>
+            <span className="font-mono" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Cur: {tempStats.curr}°C | Min: {tempStats.min}°C | Max: {tempStats.max}°C | Avg: {tempStats.avg}°C
+            </span>
+          </div>
+          <div style={{ height: 220, width: '100%' }}>
+            <ResponsiveContainer>
+              <AreaChart data={tempHistory}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" opacity={0.5} />
+                <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={11} />
+                <YAxis stroke="var(--text-muted)" fontSize={11} domain={[0, 110]} unit="°C" />
+                <Tooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }} />
+                <Area type="monotone" dataKey="temp" name="CPU Temp °C" stroke="var(--color-warning)" fill="var(--color-warning-bg)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* 4. Network Throughput Chart */}
         <div className="card">
           <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -298,8 +331,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* 4. Disk I/O Chart */}
-        <div className="card">
+        {/* 5. Disk I/O Chart */}
+        <div className="card" style={{ gridColumn: 'span 2' }}>
           <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               DISK I/O THROUGHPUT (MB/s)
